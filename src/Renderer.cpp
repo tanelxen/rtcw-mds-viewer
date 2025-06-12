@@ -136,6 +136,8 @@ void Renderer::uploadShader()
     }
 }
 
+Model mdl;
+
 void Renderer::imgui_draw()
 {
     if (ImGui::BeginMainMenuBar())
@@ -146,7 +148,7 @@ void Renderer::imgui_draw()
             {
                 openFile([this](std::string filename) {
 
-                    Model mdl;
+                    
                     mdl.loadFromFile(filename);
                     
                     setModel(mdl);
@@ -160,6 +162,12 @@ void Renderer::imgui_draw()
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
+    }
+    
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    
+    if (m_pmodel) {
+        m_pmodel->imguiDraw();
     }
 }
 

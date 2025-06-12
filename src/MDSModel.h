@@ -30,8 +30,15 @@ struct Vertex
 
 struct DrawCall
 {
-    std::vector<Vertex> vertices;
-    std::vector<uint16_t> indices;
+    uint32_t vbo;
+    uint32_t numVertices;
+    void* verticesPtr;
+    
+    uint32_t ibo;
+    uint32_t numIndices;
+    void* indicesPtr;
+    
+    uint32_t vao;
 };
 
 typedef std::vector<DrawCall> DrawCallList;
@@ -39,9 +46,13 @@ typedef std::vector<DrawCall> DrawCallList;
 struct Model
 {
     void loadFromFile(const std::string& filename);
-    void render(DrawCallList *drawCallList, Entity *entity) const;
+    void render(DrawCallList &drawCallList, const Entity *entity) const;
     
     std::string name_;
+    
+    int numSurfaces() const;
+    int surfaceNumVertices(int surfaceIndex) const;
+    int surfaceNumTriangles(int surfaceIndex) const;
     
 private:
     void init();

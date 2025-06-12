@@ -14,6 +14,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "../deps/stb_image.h"
 
+#include <imgui.h>
+
 RenderableModel::~RenderableModel()
 {
 //    printf("Delete %s", name.c_str());
@@ -51,17 +53,22 @@ GLuint loadTexture(char const *filename)
     return id;
 }
 
+GLuint body_tex_id;
+GLuint boot_tex_id;
+Entity entity;
+const Model * pmodel;
+
+int startFrame = 952;
+int numFrames = 180;
+int fps = 15;
+
 void RenderableModel::init(const Model &model)
 {
-    int width, height;
-    int num_channels = 3;
-    
-    GLuint body_tex_id = loadTexture("eg_body3.jpg");
-    GLuint boot_tex_id = loadTexture("eg_boot.jpg");
+    body_tex_id = loadTexture("eg_body3.jpg");
+    boot_tex_id = loadTexture("eg_boot.jpg");
     
     this->name = model.name_;
     
-    Entity entity;
     entity.frame = 1135;
     entity.torsoFrame = 1135;
     entity.oldFrame = 1134;
@@ -69,29 +76,28 @@ void RenderableModel::init(const Model &model)
     entity.lerp = 0.0;
     entity.torsoLerp = 0.0;
     
-    DrawCallList drawCallList;
+    pmodel = &model;
     
-    model.render(&drawCallList, &entity);
+    drawCallList.resize(model.numSurfaces());
     
     for (int i = 0; i < drawCallList.size(); ++i)
     {
-        auto& drawcall = drawCallList[i];
-        auto& surface = surfaces.emplace_back();
+        auto& drawCall = drawCallList[i];
         
-        surface.bufferOffset = 0;
-        surface.indicesCount = drawcall.indices.size();
-        surface.tex = (i == 0) ? body_tex_id : boot_tex_id;
+        int numVertices = model.surfaceNumVertices(i);
+        int numIndices = model.surfaceNumTriangles(i) * 3;
         
-        glGenBuffers(1, &surface.ibo);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, surface.ibo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * drawcall.indices.size(), drawcall.indices.data(), GL_STATIC_DRAW);
+        drawCall.numVertices = numVertices;
+        drawCall.numIndices = numIndices;
         
-        glGenBuffers(1, &surface.vbo);
-        glBindBuffer(GL_ARRAY_BUFFER, surface.vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * drawcall.vertices.size(), drawcall.vertices.data(), GL_STATIC_DRAW);
+        glGenBuffers(1, &drawCall.vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, drawCall.vbo);
+        glBufferData(GL_ARRAY_BUFFER, numVertices * sizeof(Vertex), nullptr, GL_STREAM_DRAW);
+        drawCall.verticesPtr = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
         
-        glGenVertexArrays(1, &surface.vao);
-        glBindVertexArray(surface.vao);
+
+        glGenVertexArrays(1, &drawCall.vao);
+        glBindVertexArray(drawCall.vao);
         
         glEnableVertexAttribArray(VERT_POSITION_LOC);
         glVertexAttribPointer(VERT_POSITION_LOC, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, pos));
@@ -101,31 +107,65 @@ void RenderableModel::init(const Model &model)
         
         glEnableVertexAttribArray(VERT_TEX_COORD_LOC);
         glVertexAttribPointer(VERT_TEX_COORD_LOC, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texCoord));
+        
+        
+        glGenBuffers(1, &drawCall.ibo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawCall.ibo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * numIndices, nullptr, GL_STREAM_DRAW);
+        drawCall.indicesPtr = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
     }
 }
 
 void RenderableModel::updatePose()
 {
+    int currIndex = int(cur_frame);
+    int nextIndex = (currIndex + 1) % numFrames;
+    float factor = cur_frame - floor(cur_frame);
+    
+    entity.frame = startFrame + nextIndex;
+    entity.torsoFrame = startFrame + nextIndex;
+    entity.oldFrame = startFrame + currIndex;
+    entity.oldTorsoFrame = startFrame + currIndex;
+    entity.lerp = factor;
+    entity.torsoLerp = factor;
 }
 
 void RenderableModel::update(float dt)
 {
+    cur_anim_duration = (float)numFrames / fps;
+    
+    updatePose();
+    
+    cur_frame_time += dt;
+    
+    if (cur_frame_time >= cur_anim_duration)
+    {
+        cur_frame_time = 0;
+    }
+    
+    cur_frame = (float)numFrames * (cur_frame_time / cur_anim_duration);
 }
 
 void RenderableModel::draw()
 {
-    for (auto& surface : surfaces)
+    pmodel->render(drawCallList, &entity);
+    
+    for (int i = 0; i < drawCallList.size(); ++i)
     {
-//        unsigned int texId = textures[surface.tex];
+        auto& drawCall = drawCallList[i];
         
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, surface.tex);
+        glBindTexture(GL_TEXTURE_2D, i == 0 ? body_tex_id : boot_tex_id);
         
-        glBindVertexArray(surface.vao);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, surface.ibo);
+        glBindVertexArray(drawCall.vao);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawCall.ibo);
         
-        glDrawElements(GL_TRIANGLES, surface.indicesCount, GL_UNSIGNED_SHORT, (void*)surface.bufferOffset);
+        glDrawElements(GL_TRIANGLES, drawCall.numIndices, GL_UNSIGNED_SHORT, 0);
     }
 }
 
-
+void RenderableModel::imguiDraw()
+{
+    ImGui::Text("entity.oldFrame = %i", entity.oldFrame);
+    ImGui::Text("entity.frame = %i", entity.frame);
+}

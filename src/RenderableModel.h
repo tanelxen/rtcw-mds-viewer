@@ -30,6 +30,8 @@ struct RenderableModel
     void update(float dt);
     void draw();
     
+    void imguiDraw();
+    
     std::string name;
     
     // Transforms for each bone
@@ -42,7 +44,7 @@ private:
     float cur_frame = 0;
     float cur_frame_time = 0;
     float cur_anim_duration = 0;
-    int cur_seq_index = 0;
+//    int cur_seq_index = 0;
     
 //    unsigned int vbo;
 //    unsigned int ibo;
@@ -50,6 +52,8 @@ private:
     std::vector<unsigned int> textures;
     
     std::vector<RenderableSurface> surfaces;
+    
+    DrawCallList drawCallList;
     
 private:
 //    void uploadMeshes(const std::vector<Mesh>& meshes);

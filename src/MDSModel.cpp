@@ -64,9 +64,9 @@ void Model::init()
     tags_ = (mdsTag_t *)(data_.data() + header_->ofsTags);
 }
 
-void Model::render(DrawCallList *drawCallList, Entity *entity) const
+void Model::render(DrawCallList &drawCallList, const Entity *entity) const
 {
-    assert(drawCallList);
+//    assert(drawCallList);
     assert(entity);
     
     auto header = (mdsHeader_t *)data_.data();
@@ -111,10 +111,17 @@ void Model::render(DrawCallList *drawCallList, Entity *entity) const
             mdsVertex = (mdsVertex_t *)&mdsVertex->weights[mdsVertex->numWeights];
         }
         
-        DrawCall dc;
-        dc.vertices = tvb;
-        dc.indices = tib;
-        drawCallList->push_back(dc);
+        auto& drawCall = drawCallList[i];
+        
+        if (drawCall.verticesPtr)
+        {
+            memcpy(drawCall.verticesPtr, vertices, sizeof(Vertex) * tvb.size());
+        }
+        
+        if (drawCall.indicesPtr)
+        {
+            memcpy(drawCall.indicesPtr, indices, sizeof(uint16_t) * tib.size());
+        }
         
         // Move to the next surface.
         surface = (mdsSurface_t *)((uint8_t *)surface + surface->ofsEnd);
@@ -574,3 +581,38 @@ Model::Skeleton Model::calculateSkeleton(const Entity &entity, int *boneList, in
     
     return skeleton;
 }
+
+int Model::numSurfaces() const
+{
+    auto header = (mdsHeader_t *)data_.data();
+    return header->numSurfaces;
+}
+
+int Model::surfaceNumVertices(int surfaceIndex) const
+{
+    auto header = (mdsHeader_t *)data_.data();
+    auto surface = (mdsSurface_t *)(data_.data() + header->ofsSurfaces);
+    
+    for (int i = 0; i < header->numSurfaces; i++)
+    {
+        if (i == surfaceIndex) return surface->numVerts;
+        surface = (mdsSurface_t *)((uint8_t *)surface + surface->ofsEnd);
+    }
+    
+    return 0;
+}
+
+int Model::surfaceNumTriangles(int surfaceIndex) const
+{
+    auto header = (mdsHeader_t *)data_.data();
+    auto surface = (mdsSurface_t *)(data_.data() + header->ofsSurfaces);
+    
+    for (int i = 0; i < header->numSurfaces; i++)
+    {
+        if (i == surfaceIndex) return surface->numTriangles;
+        surface = (mdsSurface_t *)((uint8_t *)surface + surface->ofsEnd);
+    }
+    
+    return 0;
+}
+
