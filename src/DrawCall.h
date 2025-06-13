@@ -29,6 +29,8 @@ struct Vertex
 
 struct DrawCall
 {
+    std::string name;
+    
     uint32_t vbo;
     uint32_t numVertices;
     void* verticesPtr;

@@ -234,9 +234,9 @@ void RenderableModel::draw(glm::mat4 &mvp)
     
     for (int i = 0; i < drawCallList2.size(); ++i)
     {
-        if (i == 3) continue;
-        
         auto& drawCall = drawCallList2[i];
+        
+        if (drawCall.name == "h_blink") continue;
         
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, head_tex_id);
@@ -256,3 +256,13 @@ void RenderableModel::imguiDraw()
     float f = cur_frame_time / cur_anim_duration;
     ImGui::SliderFloat("Frame", &f, 0.0f, 1.0f);
 }
+
+void RenderableModel::setAnimation(const AnimationEntry &entry)
+{
+    startFrame = entry.firstFrame;
+    numFrames = entry.length;
+    fps = entry.fps;
+    
+    cur_frame = 0;
+}
+

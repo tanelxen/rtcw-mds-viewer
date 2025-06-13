@@ -11,6 +11,7 @@
 #include <glm/glm.hpp>
 #include "MDSModel.h"
 #include "MD3Model.h"
+#include "WolfAnim.h"
 
 struct RenderableSurface
 {
@@ -33,6 +34,8 @@ struct RenderableModel
     void draw(glm::mat4 &mvp);
     
     void imguiDraw();
+    
+    void setAnimation(const AnimationEntry& entry);
     
     std::string name;
     

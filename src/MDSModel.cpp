@@ -53,6 +53,8 @@ void MDSModel::init()
         return false;
     }
     
+    name_ = header_->name;
+    
     boneInfo_ = (mdsBoneInfo_t *)(data_.data() + header_->ofsBones);
     frames_.resize(header_->numFrames);
     

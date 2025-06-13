@@ -235,6 +235,8 @@ void MD3Model::loadFromFile(const std::string &filename)
         FileSurface &fs = fileSurfaces[i];
         Surface &surface = surfaces_[i];
         
+        strcpy(surface.name, fs.name);
+        
         int numIndices = fs.nTriangles * 3;
         auto fileIndices = (int *)(fs.offset + fs.trianglesOffset);
         
@@ -302,6 +304,8 @@ void MD3Model::render(DrawCallList &drawCallList, Entity *entity) const
     {
         auto& drawCall = drawCallList[i];
         auto& surface = surfaces_[i];
+        
+        drawCall.name = surface.name;
         
         if (drawCall.verticesPtr)
         {

@@ -34,6 +34,9 @@ add_executable( ${PROJECT_NAME}
         src/MD3Model.cpp
         src/MD3Model.h
         
+        src/WolfAnim.cpp
+        src/WolfAnim.h
+        
         src/Renderer.cpp
         src/Renderer.h
         

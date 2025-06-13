@@ -12,6 +12,7 @@
 
 #include "MDSModel.h"
 #include "MD3Model.h"
+#include "WolfAnim.h"
 
 #include "Camera.h"
 #include "MainQueue.h"
@@ -68,6 +69,9 @@ void Renderer::draw(const Camera& camera)
 MDSModel mds;
 MD3Model md3;
 
+std::vector<AnimationEntry> wolfanim;
+int seqIndex = 0;
+
 void Renderer::imgui_draw()
 {
     if (ImGui::BeginMainMenuBar())
@@ -80,9 +84,12 @@ void Renderer::imgui_draw()
 
                     std::filesystem::path mds_path(filename);
                     std::filesystem::path head_path = mds_path.parent_path() / "head3.mdc";
+                    std::filesystem::path wolfanim_path = mds_path.parent_path() / "wolfanim.cfg";
+                    
+                    wolfanim = parseWolfAnimFile(wolfanim_path);
                     
                     mds.loadFromFile(filename);
-                    md3.loadFromFile(head_path.string());
+                    md3.loadFromFile(head_path);
                     
                     setModel(mds, md3);
                     
@@ -97,10 +104,45 @@ void Renderer::imgui_draw()
         ImGui::EndMainMenuBar();
     }
     
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    if (m_pmodel == nullptr) return;
     
-    if (m_pmodel) {
-        m_pmodel->imguiDraw();
+    ImGui::SetNextWindowSizeConstraints(ImVec2(250, 250), ImVec2(FLT_MAX, FLT_MAX));
+    
+    if (ImGui::Begin("Model Info###model"))
+    {
+        ImGui::Text(("Name: " + m_pmodel->name).c_str());
+        
+        ImGuiStyle& style = ImGui::GetStyle();
+        float w = ImGui::CalcItemWidth();
+        float spacing = style.ItemInnerSpacing.x;
+        float button_sz = ImGui::GetFrameHeight();
+        
+        ImGui::Text("Sequence");
+        ImGui::SameLine(0, 10);
+        
+        ImGui::PushItemWidth(w - spacing * 2.0f - button_sz * 2.0f);
+        
+        if (ImGui::BeginCombo("##sequence combo", wolfanim[seqIndex].name.c_str(), ImGuiComboFlags_None))
+        {
+            for (int i = 0; i < wolfanim.size(); ++i)
+            {
+                bool is_selected = (seqIndex == i);
+                
+                if (ImGui::Selectable(wolfanim[i].name.c_str(), is_selected))
+                {
+                    seqIndex = i;
+                    m_pmodel->setAnimation(wolfanim[i]);
+                }
+                
+                if (is_selected) ImGui::SetItemDefaultFocus();
+            }
+            
+            ImGui::EndCombo();
+        }
+        
+        ImGui::PopItemWidth();
+        
+        ImGui::End();
     }
 }
 
