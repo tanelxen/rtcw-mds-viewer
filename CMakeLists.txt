@@ -25,9 +25,14 @@ add_executable( ${PROJECT_NAME}
         src/Matrix.cpp
         src/Vector.cpp
         
+        src/DrawCall.h
+        
         src/MDSModel.cpp
         src/MDSModel.h
         src/MDSFile.h
+        
+        src/MD3Model.cpp
+        src/MD3Model.h
         
         src/Renderer.cpp
         src/Renderer.h
@@ -37,6 +42,9 @@ add_executable( ${PROJECT_NAME}
         
         src/Camera.cpp
         src/Camera.h
+        
+        src/Shader.cpp
+        src/Shader.h
         
         src/MainQueue.h
 
@@ -49,3 +57,10 @@ add_executable( ${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME} PRIVATE deps/glm)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE glad glfw imgui)
+
+add_custom_command(
+        TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG}/assets
+)

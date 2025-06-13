@@ -6,8 +6,9 @@
 //
 
 #include "MDSModel.h"
+#include <span>
 
-void Model::loadFromFile(const std::string &filename)
+void MDSModel::loadFromFile(const std::string &filename)
 {
     FILE* fp = fopen(filename.c_str(), "rb" );
 
@@ -29,7 +30,7 @@ void Model::loadFromFile(const std::string &filename)
     init();
 }
 
-void Model::init()
+void MDSModel::init()
 {
     // Header
     header_ = (mdsHeader_t *)data_.data();
@@ -64,7 +65,7 @@ void Model::init()
     tags_ = (mdsTag_t *)(data_.data() + header_->ofsTags);
 }
 
-void Model::render(DrawCallList &drawCallList, const Entity *entity) const
+void MDSModel::render(DrawCallList &drawCallList, Entity *entity) const
 {
 //    assert(drawCallList);
     assert(entity);
@@ -128,19 +129,6 @@ void Model::render(DrawCallList &drawCallList, const Entity *entity) const
     }
 }
 
-void Model::recursiveBoneListAdd(int boneIndex, int *boneList, int *nBones) const
-{
-    assert(boneList);
-    assert(nBones);
-    
-    if (boneInfo_[boneIndex].parent >= 0)
-    {
-        recursiveBoneListAdd(boneInfo_[boneIndex].parent, boneList, nBones);
-    }
-    
-    boneList[(*nBones)++] = boneIndex;
-}
-
 static mat4 Matrix4Transform(const mat3 &rotation, vec3 translation)
 {
     // mat4::transform translation is 12,13,14
@@ -188,7 +176,7 @@ static float AngleNormalize180(float angle) {
     return angle;
 }
 
-Model::Bone Model::calculateBoneRaw(const Entity &entity, int boneIndex, const Skeleton &skeleton) const
+MDSModel::Bone MDSModel::calculateBoneRaw(const Entity &entity, int boneIndex, const Skeleton &skeleton) const
 {
     const mdsBoneInfo_t &bi = boneInfo_[boneIndex];
     bool isTorso = false, fullTorso = false;
@@ -294,7 +282,7 @@ Model::Bone Model::calculateBoneRaw(const Entity &entity, int boneIndex, const S
     return bone;
 }
 
-Model::Bone Model::calculateBoneLerp(const Entity &entity, int boneIndex, const Skeleton &skeleton) const
+MDSModel::Bone MDSModel::calculateBoneLerp(const Entity &entity, int boneIndex, const Skeleton &skeleton) const
 {
     const mdsBoneInfo_t &bi = boneInfo_[boneIndex];
     const Bone *parentBone = nullptr;
@@ -448,12 +436,12 @@ Model::Bone Model::calculateBoneLerp(const Entity &entity, int boneIndex, const 
     return bone;
 }
 
-Model::Bone Model::calculateBone(const Entity &entity, int boneIndex, const Skeleton &skeleton, bool lerp) const
+MDSModel::Bone MDSModel::calculateBone(const Entity &entity, int boneIndex, const Skeleton &skeleton, bool lerp) const
 {
     return lerp ? calculateBoneLerp(entity, boneIndex, skeleton) : calculateBoneRaw(entity, boneIndex, skeleton);
 }
 
-Model::Skeleton Model::calculateSkeleton(const Entity &entity, int *boneList, int nBones) const
+MDSModel::Skeleton MDSModel::calculateSkeleton(const Entity &entity, int *boneList, int nBones) const
 {
     assert(boneList);
     Skeleton skeleton;
@@ -582,13 +570,13 @@ Model::Skeleton Model::calculateSkeleton(const Entity &entity, int *boneList, in
     return skeleton;
 }
 
-int Model::numSurfaces() const
+int MDSModel::numSurfaces() const
 {
     auto header = (mdsHeader_t *)data_.data();
     return header->numSurfaces;
 }
 
-int Model::surfaceNumVertices(int surfaceIndex) const
+int MDSModel::surfaceNumVertices(int surfaceIndex) const
 {
     auto header = (mdsHeader_t *)data_.data();
     auto surface = (mdsSurface_t *)(data_.data() + header->ofsSurfaces);
@@ -602,7 +590,7 @@ int Model::surfaceNumVertices(int surfaceIndex) const
     return 0;
 }
 
-int Model::surfaceNumTriangles(int surfaceIndex) const
+int MDSModel::surfaceNumTriangles(int surfaceIndex) const
 {
     auto header = (mdsHeader_t *)data_.data();
     auto surface = (mdsSurface_t *)(data_.data() + header->ofsSurfaces);
@@ -616,3 +604,43 @@ int Model::surfaceNumTriangles(int surfaceIndex) const
     return 0;
 }
 
+void MDSModel::recursiveBoneListAdd(int boneIndex, int *boneList, int *nBones) const
+{
+    assert(boneList);
+    assert(nBones);
+
+    if (boneInfo_[boneIndex].parent >= 0)
+    {
+        recursiveBoneListAdd(boneInfo_[boneIndex].parent, boneList, nBones);
+    }
+
+    boneList[(*nBones)++] = boneIndex;
+}
+
+int MDSModel::lerpTag(const char *name, const Entity &entity, int startIndex, Transform *transform) const
+{
+    assert(transform);
+    
+    for (int i = 0; i < header_->numTags; i++)
+    {
+        const mdsTag_t &tag = tags_[i];
+        
+        if (i >= startIndex && !strcmp(tags_[i].name, name))
+        {
+            // Now build the list of bones we need to calc to get this tag's bone information.
+            int boneList[MDS_MAX_BONES];
+            int nBones = 0;
+            recursiveBoneListAdd(tags_[i].boneIndex, boneList, &nBones);
+            
+            // Calculate the skeleton.
+            Skeleton skeleton = calculateSkeleton(entity, boneList, nBones);
+            
+            // Now extract the transform for the bone that represents our tag.
+            transform->position = skeleton.bones[tag.boneIndex].translation;
+            transform->rotation = skeleton.bones[tag.boneIndex].rotation;
+            return i;
+        }
+    }
+    
+    return -1;
+}

@@ -564,4 +564,10 @@ namespace math {
         
         float e_[16];
     };
+    
+    struct Transform
+    {
+        vec3 position;
+        mat3 rotation;
+    };
 }

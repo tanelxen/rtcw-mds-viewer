@@ -15,7 +15,7 @@
 #include "RenderableModel.h"
 
 struct GLFWwindow;
-class Model;
+class MDSModel;
 class Camera;
 
 struct Renderer
@@ -23,18 +23,12 @@ struct Renderer
     Renderer();
     ~Renderer();
     
-    void setModel(const Model& model);
+    void setModel(const MDSModel& body, const MD3Model& head);
     void update(float dt);
     void draw(const Camera& camera);
     void imgui_draw();
     
 private:
-    void uploadShader();
-    
-    unsigned int program;
-    unsigned int u_MVP_loc;
-    unsigned int u_boneTransforms_loc;
-    
     std::unique_ptr<RenderableModel> m_pmodel;
     
     //ImGui stuff

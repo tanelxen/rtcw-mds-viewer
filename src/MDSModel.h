@@ -11,42 +11,13 @@
 #include <string>
 
 #include "MDSFile.h"
+#include "DrawCall.h"
 
-struct Entity
-{
-    int frame, torsoFrame;
-    int oldFrame, oldTorsoFrame;
-    float lerp, torsoLerp;
-    
-    mat3 torsoRotation;
-};
-
-struct Vertex
-{
-    vec3 pos;
-    vec3 normal;
-    vec2 texCoord;
-};
-
-struct DrawCall
-{
-    uint32_t vbo;
-    uint32_t numVertices;
-    void* verticesPtr;
-    
-    uint32_t ibo;
-    uint32_t numIndices;
-    void* indicesPtr;
-    
-    uint32_t vao;
-};
-
-typedef std::vector<DrawCall> DrawCallList;
-
-struct Model
+struct MDSModel
 {
     void loadFromFile(const std::string& filename);
-    void render(DrawCallList &drawCallList, const Entity *entity) const;
+    void render(DrawCallList &drawCallList, Entity *entity) const;
+    int lerpTag(const char *name, const Entity &entity, int startIndex, Transform *transform) const;
     
     std::string name_;
     

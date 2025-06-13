@@ -10,6 +10,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include "MDSModel.h"
+#include "MD3Model.h"
 
 struct RenderableSurface
 {
@@ -26,9 +27,10 @@ struct RenderableModel
 {
     ~RenderableModel();
     
-    void init(const Model& model);
+    void init(const MDSModel& mds, const MD3Model& md3);
     void update(float dt);
-    void draw();
+    
+    void draw(glm::mat4 &mvp);
     
     void imguiDraw();
     
@@ -54,6 +56,7 @@ private:
     std::vector<RenderableSurface> surfaces;
     
     DrawCallList drawCallList;
+    DrawCallList drawCallList2;
     
 private:
 //    void uploadMeshes(const std::vector<Mesh>& meshes);
