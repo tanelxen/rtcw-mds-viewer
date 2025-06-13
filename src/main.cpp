@@ -62,7 +62,7 @@ int main()
     glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
     glfwWindowHint(GLFW_SAMPLES, 8);
 
-    window = glfwCreateWindow(window_width, window_height, "Demo", nullptr, nullptr);
+    window = glfwCreateWindow(window_width, window_height, "RTCW model viewer", nullptr, nullptr);
 
     glfwSetKeyCallback(window, key_callback);
 

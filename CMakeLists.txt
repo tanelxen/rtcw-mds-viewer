@@ -37,6 +37,9 @@ add_executable( ${PROJECT_NAME}
         src/WolfAnim.cpp
         src/WolfAnim.h
         
+        src/Skin.cpp
+        src/Skin.h
+        
         src/Renderer.cpp
         src/Renderer.h
         

@@ -16,6 +16,7 @@
 
 struct GLFWwindow;
 class MDSModel;
+class SkinFile;
 class Camera;
 
 struct Renderer
@@ -23,7 +24,7 @@ struct Renderer
     Renderer();
     ~Renderer();
     
-    void setModel(const MDSModel& body, const MD3Model& head);
+    void setModel(const MDSModel& body, const MD3Model& head, const SkinFile &bodySkin, const SkinFile &headSkin);
     void update(float dt);
     void draw(const Camera& camera);
     void imgui_draw();

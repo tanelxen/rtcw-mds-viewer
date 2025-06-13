@@ -116,6 +116,8 @@ void MDSModel::render(DrawCallList &drawCallList, Entity *entity) const
         
         auto& drawCall = drawCallList[i];
         
+        drawCall.name = surface->name;
+        
         if (drawCall.verticesPtr)
         {
             memcpy(drawCall.verticesPtr, vertices, sizeof(Vertex) * tvb.size());

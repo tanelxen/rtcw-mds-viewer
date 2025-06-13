@@ -12,6 +12,7 @@
 #include "MDSModel.h"
 #include "MD3Model.h"
 #include "WolfAnim.h"
+#include "Skin.h"
 
 struct RenderableSurface
 {
@@ -28,7 +29,7 @@ struct RenderableModel
 {
     ~RenderableModel();
     
-    void init(const MDSModel& mds, const MD3Model& md3);
+    void init(const MDSModel& mds, const MD3Model& md3, const SkinFile &bodySkin, const SkinFile &headSkin);
     void update(float dt);
     
     void draw(glm::mat4 &mvp);
@@ -54,7 +55,7 @@ private:
 //    unsigned int vbo;
 //    unsigned int ibo;
 //    unsigned int vao;
-    std::vector<unsigned int> textures;
+//    std::vector<unsigned int> textures;
     
     std::vector<RenderableSurface> surfaces;
     

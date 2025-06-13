@@ -3,12 +3,16 @@
 Crossplatform Return to Castle Wolfenstein models viewer. It was made with GLFW and support modern rendering via OpenGL 4.1.
 
 Features:
-- ✅ parsing .mds
-- ✅ simple rendering one frame
+- ✅ read .mds
+- ✅ read .mdc (only head)
+- ✅ read wolfanim.cfg
+- ✅ read .skin-files
+- ✅ simple CPU-skinning animation
+
+## PREVIEW
+![screenshot](https://github.com/tanelxen/rtcw-mds-viewer/blob/master/screenshots/screenshot1.png)
 
 ## TODO
-- [ ] support animations
 - [ ] on GPU skinning
-- [ ] read wolfanim.cfg
-- [ ] read .skin-files
-- [ ] load and render tags (.mdc)
+- [ ] support more tags
+- [ ] select skins

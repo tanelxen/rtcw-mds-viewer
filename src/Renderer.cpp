@@ -13,6 +13,7 @@
 #include "MDSModel.h"
 #include "MD3Model.h"
 #include "WolfAnim.h"
+#include "Skin.h"
 
 #include "Camera.h"
 #include "MainQueue.h"
@@ -35,10 +36,10 @@ Renderer::~Renderer()
 {
 }
 
-void Renderer::setModel(const MDSModel& body, const MD3Model& head)
+void Renderer::setModel(const MDSModel& body, const MD3Model& head, const SkinFile &bodySkin, const SkinFile &headSkin)
 {
     m_pmodel = std::make_unique<RenderableModel>();
-    m_pmodel->init(body, head);
+    m_pmodel->init(body, head, bodySkin, headSkin);
 }
 
 void Renderer::update(float dt)
@@ -83,15 +84,23 @@ void Renderer::imgui_draw()
                 openFile([this](std::string filename) {
 
                     std::filesystem::path mds_path(filename);
-                    std::filesystem::path head_path = mds_path.parent_path() / "head3.mdc";
-                    std::filesystem::path wolfanim_path = mds_path.parent_path() / "wolfanim.cfg";
+                    auto folder = mds_path.parent_path();
+                    
+                    auto head_path = folder / "head.mdc";
+                    auto wolfanim_path = folder / "wolfanim.cfg";
+                    
+                    auto body_skin_path = folder / "body_default.skin";
+                    auto head_skin_path = folder / "head_default.skin";
+                    
+                    auto body_skin = parseSkinFile(body_skin_path);
+                    auto head_skin = parseSkinFile(head_skin_path);
                     
                     wolfanim = parseWolfAnimFile(wolfanim_path);
                     
                     mds.loadFromFile(filename);
                     md3.loadFromFile(head_path);
                     
-                    setModel(mds, md3);
+                    setModel(mds, md3, body_skin, head_skin);
                     
                 }, "*.mds");
             }

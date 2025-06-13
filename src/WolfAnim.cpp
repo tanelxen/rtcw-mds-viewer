@@ -59,6 +59,9 @@ std::vector<AnimationEntry> parseWolfAnimFile(const std::string& filename)
         if (tokens.size() < 6)
             continue; // skip invalid lines
         
+        if (tokens.size() > 6)
+            continue; // skip invalid lines
+        
         AnimationEntry entry;
         entry.name = tokens[0];
         entry.firstFrame = std::stoi(tokens[1]);

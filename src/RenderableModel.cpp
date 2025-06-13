@@ -17,6 +17,8 @@
 
 #include <imgui.h>
 
+#include <filesystem>
+
 Shader shader;
 
 RenderableModel::~RenderableModel()
@@ -34,14 +36,50 @@ RenderableModel::~RenderableModel()
 #define VERT_TEX_COORD_LOC 2
 #define VERT_BONE_INDEX_LOC 3
 
-GLuint loadTexture(char const *filename)
+std::string resolvePath(const std::string& filename)
 {
+    namespace fs = std::filesystem;
+    
+    fs::path originalPath(filename);
+    
+    // Если файл существует с указанным именем — возвращаем его
+    if (fs::exists(originalPath))
+        return filename;
+    
+    // Список допустимых расширений
+    static const std::vector<std::string> alternativeExtensions = {
+        ".tga", ".jpg"
+    };
+    
+    // Путь без расширения
+    fs::path basePath = originalPath;
+    basePath.replace_extension(); // удаляет текущее расширение
+    
+    for (const auto& ext : alternativeExtensions)
+    {
+        fs::path testPath = basePath;
+        testPath.replace_extension(ext);
+        
+        if (fs::exists(testPath))
+            return testPath.string();
+    }
+    
+    // Ничего не найдено — возвращаем пустую строку или исходное имя
+    return "";
+}
+
+GLuint loadTexture(std::string filename)
+{
+    filename = resolvePath(filename);
+    
+    if (filename.empty()) return 0;
+    
     GLuint id;
     glGenTextures(1, &id);
     
     int width, height;
     int num_channels = 3;
-    unsigned char* image = stbi_load(filename, &width, &height, &num_channels, 3);
+    unsigned char* image = stbi_load(filename.c_str(), &width, &height, &num_channels, 3);
     
     glBindTexture(GL_TEXTURE_2D, id);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -56,25 +94,30 @@ GLuint loadTexture(char const *filename)
     return id;
 }
 
-GLuint body_tex_id;
-GLuint boot_tex_id;
-GLuint head_tex_id;
 Entity entity;
 
 const MDSModel * pbody;
 const MD3Model * phead;
 
-int startFrame = 1134;
-int numFrames = 290;
+int startFrame = 0;
+int numFrames = 1;
 int fps = 15;
 
-void RenderableModel::init(const MDSModel& mds, const MD3Model& md3)
+auto g_textures = std::unordered_map<std::string, GLuint>();
+
+void RenderableModel::init(const MDSModel& mds, const MD3Model& md3, const SkinFile &bodySkin, const SkinFile &headSkin)
 {
     shader.init("assets/shaders/md3.glsl");
     
-    body_tex_id = loadTexture("eg_body3.jpg");
-    boot_tex_id = loadTexture("eg_boot.jpg");
-    head_tex_id = loadTexture("eg_head6.jpg");
+    for (const auto& [mesh, texture] : bodySkin.textures)
+    {
+        g_textures[mesh] = loadTexture(texture.c_str());
+    }
+    
+    for (const auto& [mesh, texture] : headSkin.textures)
+    {
+        g_textures[mesh] = loadTexture(texture.c_str());
+    }
     
     this->name = mds.name_;
     
@@ -198,8 +241,11 @@ void RenderableModel::draw(glm::mat4 &mvp)
     {
         auto& drawCall = drawCallList[i];
         
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, i == 0 ? body_tex_id : boot_tex_id);
+        if (g_textures.contains(drawCall.name))
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, g_textures[drawCall.name]);
+        }
         
         glBindVertexArray(drawCall.vao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawCall.ibo);
@@ -238,8 +284,11 @@ void RenderableModel::draw(glm::mat4 &mvp)
         
         if (drawCall.name == "h_blink") continue;
         
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, head_tex_id);
+        if (g_textures.contains(drawCall.name))
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, g_textures[drawCall.name]);
+        }
         
         glBindVertexArray(drawCall.vao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawCall.ibo);
