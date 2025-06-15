@@ -38,5 +38,5 @@ private:
     bool isPlayerView = false;
     glm::vec3 weaponOffset = {0, 0, 0};
     
-    void openFile(std::function<void(std::string)> callback, const char* filter);
+    void LoadSkinPair(const std::string& folder, const std::string& skinName);
 };

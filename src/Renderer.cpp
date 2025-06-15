@@ -28,6 +28,9 @@
 
 #include <imgui.h>
 
+#include <filesystem>
+#include <unordered_set>
+
 Renderer::Renderer()
 {
 }
@@ -73,6 +76,79 @@ MD3Model md3;
 std::vector<AnimationEntry> wolfanim;
 int seqIndex = 0;
 
+namespace fs = std::filesystem;
+
+std::string selectedFolder;
+std::vector<std::string> skinNames;
+std::string currentSelectedSkin;
+bool showMissingMdsMessage = false;
+
+void ScanSkinFolder(const std::string& folderPath)
+{
+    skinNames.clear();
+    
+    bool folderHasBodyMds = fs::exists(folderPath + "/body.mds");
+    showMissingMdsMessage = !folderHasBodyMds;
+    
+    if (!folderHasBodyMds) return;
+    
+    std::unordered_set<std::string> bodySkins;
+    std::unordered_set<std::string> headSkins;
+    
+    for (const auto& entry : fs::directory_iterator(folderPath)) {
+        if (!entry.is_regular_file()) continue;
+        std::string filename = entry.path().filename().string();
+        
+        if (filename.starts_with("body_") && filename.ends_with(".skin")) {
+            std::string skin = filename.substr(5, filename.size() - 10); // 5 = strlen("body_"), 10 = strlen("body_") + strlen(".skin")
+            bodySkins.insert(skin);
+        } else if (filename.starts_with("head_") && filename.ends_with(".skin")) {
+            std::string skin = filename.substr(5, filename.size() - 10);
+            headSkins.insert(skin);
+        }
+    }
+    
+    // Найти общие имена скинов
+    for (const auto& skin : bodySkins) {
+        if (headSkins.count(skin)) {
+            skinNames.push_back(skin);
+        }
+    }
+}
+
+std::string resolvePath(const std::string& filename, const std::vector<std::string>& extensions);
+
+void Renderer::LoadSkinPair(const std::string& folder, const std::string& skinName)
+{
+    std::string animPath = folder + "/wolfanim.cfg";
+    wolfanim = parseWolfAnimFile(animPath);
+    
+    std::string bodyMDSPath = folder + "/body.mds";
+    mds.loadFromFile(bodyMDSPath);
+    
+    std::string bodySkinPath = folder + "/body_" + skinName + ".skin";
+    auto bodySkin = parseSkinFile(bodySkinPath);
+    
+    std::string headSkinPath = folder + "/head_" + skinName + ".skin";
+    auto headSkin = parseSkinFile(headSkinPath);
+    
+    auto headMD3path = folder + "head.mdc";
+    
+    if (headSkin.attachments.contains("md3_part"))
+    {
+        headMD3path = folder + headSkin.attachments["md3_part"];
+    }
+    
+    headMD3path = resolvePath(headMD3path, {".mdc"});
+    md3.loadFromFile(headMD3path);
+    
+    mds.name_ = fs::path(folder).parent_path().filename() / skinName;
+    
+    setModel(mds, md3, bodySkin, headSkin);
+}
+
+void selectFolder(std::function<void (std::string)> callback);
+
 void Renderer::imgui_draw()
 {
     if (ImGui::BeginMainMenuBar())
@@ -81,28 +157,10 @@ void Renderer::imgui_draw()
         {
             if (ImGui::MenuItem("Open", "Ctrl+O"))
             {
-                openFile([this](std::string filename) {
-
-                    std::filesystem::path mds_path(filename);
-                    auto folder = mds_path.parent_path();
-                    
-                    auto head_path = folder / "head.mdc";
-                    auto wolfanim_path = folder / "wolfanim.cfg";
-                    
-                    auto body_skin_path = folder / "body_default.skin";
-                    auto head_skin_path = folder / "head_default.skin";
-                    
-                    auto body_skin = parseSkinFile(body_skin_path);
-                    auto head_skin = parseSkinFile(head_skin_path);
-                    
-                    wolfanim = parseWolfAnimFile(wolfanim_path);
-                    
-                    mds.loadFromFile(filename);
-                    md3.loadFromFile(head_path);
-                    
-                    setModel(mds, md3, body_skin, head_skin);
-                    
-                }, "*.mds");
+                selectFolder([this](std::string path) {
+                    selectedFolder = path;
+                    ScanSkinFolder(path);
+                });
             }
 
             if (ImGui::MenuItem("Exit")) {
@@ -111,6 +169,40 @@ void Renderer::imgui_draw()
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
+    }
+    
+    if (showMissingMdsMessage)
+    {
+        ImGui::OpenPopup("###alert");
+        showMissingMdsMessage = false;
+    }
+    
+    if (ImGui::BeginPopupModal("ERROR###alert", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::Text("Missing 'body.mds' in selected folder!");
+        ImGui::Spacing();
+        
+        if (ImGui::Button("OK", ImVec2(60, 0))) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    
+    if (!selectedFolder.empty())
+    {
+        if (ImGui::Begin("Available skins###skins"))
+        {
+            for (const auto& skin : skinNames)
+            {
+                if (ImGui::Selectable(skin.c_str(), currentSelectedSkin == skin))
+                {
+                    currentSelectedSkin = skin;
+                    LoadSkinPair(selectedFolder, skin);
+                }
+            }
+            
+            ImGui::End();
+        }
     }
     
     if (m_pmodel == nullptr) return;
@@ -155,16 +247,16 @@ void Renderer::imgui_draw()
     }
 }
 
-void Renderer::openFile(std::function<void (std::string)> callback, const char* filter)
+void selectFolder(std::function<void (std::string)> callback)
 {
-    std::thread([callback, filter]() {
+    std::thread([callback]() {
         
-        const char* filename = tinyfd_openFileDialog(nullptr, nullptr, 1, &filter, nullptr, 0);
+        const char* path = tinyfd_selectFolderDialog(nullptr, nullptr);
         
-        if (filename != nullptr)
+        if (path != nullptr)
         {
-            MainQueue::instance().async([callback, filename] () {
-                callback(filename);
+            MainQueue::instance().async([callback, path] () {
+                callback(path);
             });
         }
         

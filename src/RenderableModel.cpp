@@ -36,41 +36,31 @@ RenderableModel::~RenderableModel()
 #define VERT_TEX_COORD_LOC 2
 #define VERT_BONE_INDEX_LOC 3
 
-std::string resolvePath(const std::string& filename)
+std::string resolvePath(const std::string& filename, const std::vector<std::string>& extensions)
 {
     namespace fs = std::filesystem;
     
     fs::path originalPath(filename);
     
-    // Если файл существует с указанным именем — возвращаем его
-    if (fs::exists(originalPath))
-        return filename;
+    if (originalPath.has_extension() && fs::exists(originalPath)) return filename;
     
-    // Список допустимых расширений
-    static const std::vector<std::string> alternativeExtensions = {
-        ".tga", ".jpg"
-    };
-    
-    // Путь без расширения
     fs::path basePath = originalPath;
-    basePath.replace_extension(); // удаляет текущее расширение
+    basePath.replace_extension();
     
-    for (const auto& ext : alternativeExtensions)
+    for (const auto& ext : extensions)
     {
         fs::path testPath = basePath;
         testPath.replace_extension(ext);
         
-        if (fs::exists(testPath))
-            return testPath.string();
+        if (fs::exists(testPath)) return testPath.string();
     }
     
-    // Ничего не найдено — возвращаем пустую строку или исходное имя
     return "";
 }
 
 GLuint loadTexture(std::string filename)
 {
-    filename = resolvePath(filename);
+    filename = resolvePath(filename, {".tga", ".jpg"});
     
     if (filename.empty()) return 0;
     
@@ -107,6 +97,10 @@ auto g_textures = std::unordered_map<std::string, GLuint>();
 
 void RenderableModel::init(const MDSModel& mds, const MD3Model& md3, const SkinFile &bodySkin, const SkinFile &headSkin)
 {
+    startFrame = 0;
+    numFrames = 1;
+    fps = 15;
+    
     shader.init("assets/shaders/md3.glsl");
     
     for (const auto& [mesh, texture] : bodySkin.textures)
