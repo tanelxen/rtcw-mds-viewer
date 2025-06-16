@@ -6,9 +6,17 @@
 //
 
 #include "MDSModel.h"
-#include <span>
+#include "Skin.h"
+#include "Utils.h"
 
-void MDSModel::loadFromFile(const std::string &filename)
+#include <span>
+#include <glad/glad.h>
+
+#define VERT_POSITION_LOC 0
+#define VERT_NORMAL_LOC 1
+#define VERT_TEX_COORD_LOC 2
+
+void MDSModel::loadFromFile(const std::string &filename, const SkinFile &skin)
 {
     FILE* fp = fopen(filename.c_str(), "rb" );
 
@@ -25,35 +33,26 @@ void MDSModel::loadFromFile(const std::string &filename)
     fread(data_.data(), size, 1, fp);
     fclose(fp);
     
-    name_ = filename;
-    
-    init();
-}
-
-void MDSModel::init()
-{
     // Header
     header_ = (mdsHeader_t *)data_.data();
     
     if (header_->ident != MDS_IDENT)
     {
-        printf("Model %s: wrong ident (%i should be %i)\n", name_.c_str(), header_->ident, MDS_IDENT);
+        printf("Model %s: wrong ident (%i should be %i)\n", filename.c_str(), header_->ident, MDS_IDENT);
         return false;
     }
     
     if (header_->version != MDS_VERSION)
     {
-        printf("Model %s: wrong version (%i should be %i)\n", name_.c_str(), header_->version, MDS_VERSION);
+        printf("Model %s: wrong version (%i should be %i)\n", filename.c_str(), header_->version, MDS_VERSION);
         return false;
     }
     
     if (header_->numFrames < 1)
     {
-        printf("Model %s: no frames\n", name_.c_str());
+        printf("Model %s: no frames\n", filename.c_str());
         return false;
     }
-    
-    name_ = header_->name;
     
     boneInfo_ = (mdsBoneInfo_t *)(data_.data() + header_->ofsBones);
     frames_.resize(header_->numFrames);
@@ -65,13 +64,78 @@ void MDSModel::init()
     }
     
     tags_ = (mdsTag_t *)(data_.data() + header_->ofsTags);
+    
+    for (const auto& [mesh, texture] : skin.textures)
+    {
+        m_textures[mesh] = loadTexture(texture.c_str());
+    }
+    
+    m_shader.init("assets/shaders/md3.glsl");
+    
+    m_drawCallList.resize(numSurfaces());
+    
+    for (int i = 0; i < m_drawCallList.size(); ++i)
+    {
+        auto& drawCall = m_drawCallList[i];
+        
+        int numVertices = surfaceNumVertices(i);
+        int numIndices = surfaceNumTriangles(i) * 3;
+        
+        drawCall.numVertices = numVertices;
+        drawCall.numIndices = numIndices;
+        
+        glGenBuffers(1, &drawCall.vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, drawCall.vbo);
+        glBufferData(GL_ARRAY_BUFFER, numVertices * sizeof(Vertex), nullptr, GL_STREAM_DRAW);
+        drawCall.verticesPtr = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+        
+        
+        glGenVertexArrays(1, &drawCall.vao);
+        glBindVertexArray(drawCall.vao);
+        
+        glEnableVertexAttribArray(VERT_POSITION_LOC);
+        glVertexAttribPointer(VERT_POSITION_LOC, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, pos));
+        
+        glEnableVertexAttribArray(VERT_NORMAL_LOC);
+        glVertexAttribPointer(VERT_NORMAL_LOC, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
+        
+        glEnableVertexAttribArray(VERT_TEX_COORD_LOC);
+        glVertexAttribPointer(VERT_TEX_COORD_LOC, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texCoord));
+        
+        
+        glGenBuffers(1, &drawCall.ibo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawCall.ibo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * numIndices, nullptr, GL_STREAM_DRAW);
+        drawCall.indicesPtr = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
+    }
 }
 
-void MDSModel::render(DrawCallList &drawCallList, Entity *entity) const
+void MDSModel::render(const glm::mat4 &mvp, const MDSFrameInfo &entity)
 {
-//    assert(drawCallList);
-    assert(entity);
+    render(m_drawCallList, entity);
     
+    m_shader.bind();
+    m_shader.setUniform("uMVP", mvp);
+    
+    for (int i = 0; i < m_drawCallList.size(); ++i)
+    {
+        auto& drawCall = m_drawCallList[i];
+        
+        if (m_textures.contains(drawCall.name))
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, m_textures[drawCall.name]);
+        }
+        
+        glBindVertexArray(drawCall.vao);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawCall.ibo);
+        
+        glDrawElements(GL_TRIANGLES, drawCall.numIndices, GL_UNSIGNED_SHORT, 0);
+    }
+}
+
+void MDSModel::render(DrawCallList &drawCallList, const MDSFrameInfo &entity) const
+{
     auto header = (mdsHeader_t *)data_.data();
     auto surface = (mdsSurface_t *)(data_.data() + header->ofsSurfaces);
     
@@ -92,7 +156,7 @@ void MDSModel::render(DrawCallList &drawCallList, Entity *entity) const
             indices[i] = mdsIndices[i];
         }
         
-        Skeleton skeleton = calculateSkeleton(*entity, (int *)((uint8_t *)surface + surface->ofsBoneReferences), surface->numBoneReferences);
+        Skeleton skeleton = calculateSkeleton(entity, (int *)((uint8_t *)surface + surface->ofsBoneReferences), surface->numBoneReferences);
         auto mdsVertex = (const mdsVertex_t *)((uint8_t *)surface + surface->ofsVerts);
         
         for (int i = 0; i < surface->numVerts; i++)
@@ -180,7 +244,7 @@ static float AngleNormalize180(float angle) {
     return angle;
 }
 
-MDSModel::Bone MDSModel::calculateBoneRaw(const Entity &entity, int boneIndex, const Skeleton &skeleton) const
+MDSModel::Bone MDSModel::calculateBoneRaw(const MDSFrameInfo &entity, int boneIndex, const Skeleton &skeleton) const
 {
     const mdsBoneInfo_t &bi = boneInfo_[boneIndex];
     bool isTorso = false, fullTorso = false;
@@ -286,7 +350,7 @@ MDSModel::Bone MDSModel::calculateBoneRaw(const Entity &entity, int boneIndex, c
     return bone;
 }
 
-MDSModel::Bone MDSModel::calculateBoneLerp(const Entity &entity, int boneIndex, const Skeleton &skeleton) const
+MDSModel::Bone MDSModel::calculateBoneLerp(const MDSFrameInfo &entity, int boneIndex, const Skeleton &skeleton) const
 {
     const mdsBoneInfo_t &bi = boneInfo_[boneIndex];
     const Bone *parentBone = nullptr;
@@ -440,12 +504,12 @@ MDSModel::Bone MDSModel::calculateBoneLerp(const Entity &entity, int boneIndex, 
     return bone;
 }
 
-MDSModel::Bone MDSModel::calculateBone(const Entity &entity, int boneIndex, const Skeleton &skeleton, bool lerp) const
+MDSModel::Bone MDSModel::calculateBone(const MDSFrameInfo &entity, int boneIndex, const Skeleton &skeleton, bool lerp) const
 {
     return lerp ? calculateBoneLerp(entity, boneIndex, skeleton) : calculateBoneRaw(entity, boneIndex, skeleton);
 }
 
-MDSModel::Skeleton MDSModel::calculateSkeleton(const Entity &entity, int *boneList, int nBones) const
+MDSModel::Skeleton MDSModel::calculateSkeleton(const MDSFrameInfo &entity, int *boneList, int nBones) const
 {
     assert(boneList);
     Skeleton skeleton;
@@ -621,7 +685,7 @@ void MDSModel::recursiveBoneListAdd(int boneIndex, int *boneList, int *nBones) c
     boneList[(*nBones)++] = boneIndex;
 }
 
-int MDSModel::lerpTag(const char *name, const Entity &entity, int startIndex, Transform *transform) const
+int MDSModel::lerpTag(const char *name, const MDSFrameInfo &entity, int startIndex, Transform *transform) const
 {
     assert(transform);
     
@@ -647,4 +711,19 @@ int MDSModel::lerpTag(const char *name, const Entity &entity, int startIndex, Tr
     }
     
     return -1;
+}
+
+MDSModel::~MDSModel()
+{
+    for (const auto& [mesh, texture] : m_textures)
+    {
+        glDeleteTextures(1, &texture);
+    }
+    
+    for (const auto& drawCall : m_drawCallList)
+    {
+        glDeleteBuffers(1, &drawCall.ibo);
+        glDeleteBuffers(1, &drawCall.vbo);
+        glDeleteVertexArrays(1, &drawCall.vao);
+    }
 }

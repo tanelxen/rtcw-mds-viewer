@@ -10,21 +10,18 @@
 
 #include "Renderer.h"
 
-#include "MDSModel.h"
-#include "MD3Model.h"
+#include "WolfCharacter.h"
 #include "WolfAnim.h"
 #include "Skin.h"
 
 #include "Camera.h"
 #include "MainQueue.h"
+#include "Utils.h"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 #include "../deps/tinyfiledialogs.h"
-
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
 
 #include <imgui.h>
 
@@ -37,12 +34,6 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
-}
-
-void Renderer::setModel(const MDSModel& body, const MD3Model& head, const SkinFile &bodySkin, const SkinFile &headSkin)
-{
-    m_pmodel = std::make_unique<RenderableModel>();
-    m_pmodel->init(body, head, bodySkin, headSkin);
 }
 
 void Renderer::update(float dt)
@@ -69,9 +60,6 @@ void Renderer::draw(const Camera& camera)
         m_pmodel->draw(mvp);
     }
 }
-
-MDSModel mds;
-MD3Model md3;
 
 std::vector<AnimationEntry> wolfanim;
 int seqIndex = 0;
@@ -116,35 +104,14 @@ void ScanSkinFolder(const std::string& folderPath)
     }
 }
 
-std::string resolvePath(const std::string& filename, const std::vector<std::string>& extensions);
-
 void Renderer::LoadSkinPair(const std::string& folder, const std::string& skinName)
 {
     std::string animPath = folder + "/wolfanim.cfg";
     wolfanim = parseWolfAnimFile(animPath);
     
-    std::string bodyMDSPath = folder + "/body.mds";
-    mds.loadFromFile(bodyMDSPath);
-    
-    std::string bodySkinPath = folder + "/body_" + skinName + ".skin";
-    auto bodySkin = parseSkinFile(bodySkinPath);
-    
-    std::string headSkinPath = folder + "/head_" + skinName + ".skin";
-    auto headSkin = parseSkinFile(headSkinPath);
-    
-    auto headMD3path = folder + "head.mdc";
-    
-    if (headSkin.attachments.contains("md3_part"))
-    {
-        headMD3path = folder + headSkin.attachments["md3_part"];
-    }
-    
-    headMD3path = resolvePath(headMD3path, {".mdc"});
-    md3.loadFromFile(headMD3path);
-    
-    mds.name_ = fs::path(folder).parent_path().filename() / skinName;
-    
-    setModel(mds, md3, bodySkin, headSkin);
+    m_pmodel = std::make_unique<WolfCharacter>();
+    m_pmodel->m_name = fs::path(folder).parent_path().filename() / skinName;
+    m_pmodel->init(folder, skinName);
 }
 
 void selectFolder(std::function<void (std::string)> callback);
@@ -211,7 +178,7 @@ void Renderer::imgui_draw()
     
     if (ImGui::Begin("Model Info###model"))
     {
-        ImGui::Text(("Name: " + m_pmodel->name).c_str());
+        ImGui::Text(("Name: " + m_pmodel->m_name).c_str());
         
         ImGuiStyle& style = ImGui::GetStyle();
         float w = ImGui::CalcItemWidth();

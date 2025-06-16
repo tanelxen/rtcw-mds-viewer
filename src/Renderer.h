@@ -8,15 +8,10 @@
 #pragma once
 
 #include <vector>
-#include <functional>
-
 #include <glm/glm.hpp>
 
-#include "RenderableModel.h"
-
+struct WolfCharacter;
 struct GLFWwindow;
-class MDSModel;
-class SkinFile;
 class Camera;
 
 struct Renderer
@@ -24,19 +19,11 @@ struct Renderer
     Renderer();
     ~Renderer();
     
-    void setModel(const MDSModel& body, const MD3Model& head, const SkinFile &bodySkin, const SkinFile &headSkin);
     void update(float dt);
     void draw(const Camera& camera);
     void imgui_draw();
     
 private:
-    std::unique_ptr<RenderableModel> m_pmodel;
-    
-    //ImGui stuff
-    std::vector<std::string> sequenceNames;
-    
-    bool isPlayerView = false;
-    glm::vec3 weaponOffset = {0, 0, 0};
-    
     void LoadSkinPair(const std::string& folder, const std::string& skinName);
+    std::unique_ptr<WolfCharacter> m_pmodel;
 };

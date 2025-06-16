@@ -9,25 +9,32 @@
 
 #include <vector>
 #include <string>
+#include <unordered_map>
 
 #include "MDSFile.h"
 #include "DrawCall.h"
+#include "Shader.h"
+
+struct SkinFile;
+
+struct MDSFrameInfo
+{
+    int frame, torsoFrame;
+    int oldFrame, oldTorsoFrame;
+    float lerp, torsoLerp;
+    
+    mat3 torsoRotation;
+};
 
 struct MDSModel
 {
-    void loadFromFile(const std::string& filename);
-    void render(DrawCallList &drawCallList, Entity *entity) const;
-    int lerpTag(const char *name, const Entity &entity, int startIndex, Transform *transform) const;
+    void loadFromFile(const std::string& filename, const SkinFile &skin);
+    void render(const glm::mat4 &mvp, const MDSFrameInfo &entity);
+    int lerpTag(const char *name, const MDSFrameInfo &entity, int startIndex, Transform *transform) const;
     
-    std::string name_;
-    
-    int numSurfaces() const;
-    int surfaceNumVertices(int surfaceIndex) const;
-    int surfaceNumTriangles(int surfaceIndex) const;
+    ~MDSModel();
     
 private:
-    void init();
-    
     std::vector<uint8_t> data_;
     const mdsHeader_t *header_;
     const mdsBoneInfo_t *boneInfo_;
@@ -51,8 +58,20 @@ private:
     };
     
     void recursiveBoneListAdd(int boneIndex, int *boneList, int *nBones) const;
-    Bone calculateBoneRaw(const Entity &entity, int boneIndex, const Skeleton &skeleton) const;
-    Bone calculateBoneLerp(const Entity &entity, int boneIndex, const Skeleton &skeleton) const;
-    Bone calculateBone(const Entity &entity, int boneIndex, const Skeleton &skeleton, bool lerp) const;
-    Skeleton calculateSkeleton(const Entity &entity, int *boneList, int nBones) const;
+    Bone calculateBoneRaw(const MDSFrameInfo &entity, int boneIndex, const Skeleton &skeleton) const;
+    Bone calculateBoneLerp(const MDSFrameInfo &entity, int boneIndex, const Skeleton &skeleton) const;
+    Bone calculateBone(const MDSFrameInfo &entity, int boneIndex, const Skeleton &skeleton, bool lerp) const;
+    Skeleton calculateSkeleton(const MDSFrameInfo &entity, int *boneList, int nBones) const;
+    
+    // Render stuff
+private:
+    std::unordered_map<std::string, unsigned int> m_textures;
+    Shader m_shader;
+    DrawCallList m_drawCallList;
+    
+    void render(DrawCallList &drawCallList, const MDSFrameInfo &entity) const;
+    
+    int numSurfaces() const;
+    int surfaceNumVertices(int surfaceIndex) const;
+    int surfaceNumTriangles(int surfaceIndex) const;
 };

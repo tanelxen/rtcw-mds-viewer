@@ -25,6 +25,12 @@ add_executable( ${PROJECT_NAME}
         src/Matrix.cpp
         src/Vector.cpp
         
+        src/Utils.cpp
+        src/Utils.h
+        
+        src/WolfCharacter.cpp
+        src/WolfCharacter.h
+        
         src/DrawCall.h
         
         src/MDSModel.cpp
@@ -42,9 +48,6 @@ add_executable( ${PROJECT_NAME}
         
         src/Renderer.cpp
         src/Renderer.h
-        
-        src/RenderableModel.cpp
-        src/RenderableModel.h
         
         src/Camera.cpp
         src/Camera.h

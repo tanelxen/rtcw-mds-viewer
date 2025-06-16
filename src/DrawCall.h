@@ -11,15 +11,6 @@
 
 using namespace math;
 
-struct Entity
-{
-    int frame, torsoFrame;
-    int oldFrame, oldTorsoFrame;
-    float lerp, torsoLerp;
-    
-    mat3 torsoRotation;
-};
-
 struct Vertex
 {
     vec3 pos;

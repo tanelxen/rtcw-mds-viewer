@@ -6,6 +6,14 @@
 //
 
 #include "MD3Model.h"
+#include "Skin.h"
+#include "Utils.h"
+
+#include <glad/glad.h>
+
+#define VERT_POSITION_LOC 0
+#define VERT_NORMAL_LOC 1
+#define VERT_TEX_COORD_LOC 2
 
 struct FileHeader
 {
@@ -20,17 +28,6 @@ struct FileHeader
     int tagsOffset;
     int surfacesOffset;
 };
-
-#define COPY_HEADER \
-header.ident = fileHeader->ident; \
-header.version = fileHeader->version; \
-header.nFrames = fileHeader->numFrames; \
-header.nTags = fileHeader->numTags; \
-header.nSurfaces = fileHeader->numSurfaces; \
-header.nSkins = fileHeader->numSkins; \
-header.framesOffset = fileHeader->ofsFrames; \
-header.tagsOffset = fileHeader->ofsTags; \
-header.surfacesOffset = fileHeader->ofsSurfaces;
 
 struct FileSurface
 {
@@ -58,7 +55,7 @@ namespace util {
     }
 }
 
-void MD3Model::loadFromFile(const std::string &filename)
+void MD3Model::loadFromFile(const std::string &filename, const SkinFile &skin)
 {
     compressed_ = true;
     std::vector<uint8_t> data;
@@ -84,13 +81,29 @@ void MD3Model::loadFromFile(const std::string &filename)
     if (compressed_)
     {
         auto fileHeader = (mdcHeader_t *)data.data();
-        COPY_HEADER
+        header.ident = fileHeader->ident;
+        header.version = fileHeader->version;
+        header.nFrames = fileHeader->numFrames;
+        header.nTags = fileHeader->numTags;
+        header.nSurfaces = fileHeader->numSurfaces;
+        header.nSkins = fileHeader->numSkins;
+        header.framesOffset = fileHeader->ofsFrames;
+        header.tagsOffset = fileHeader->ofsTags;
+        header.surfacesOffset = fileHeader->ofsSurfaces;
         header.tagNamesOffset = fileHeader->ofsTagNames;
     }
     else
     {
         auto fileHeader = (md3Header_t *)data.data();
-        COPY_HEADER
+        header.ident = fileHeader->ident;
+        header.version = fileHeader->version;
+        header.nFrames = fileHeader->numFrames;
+        header.nTags = fileHeader->numTags;
+        header.nSurfaces = fileHeader->numSurfaces;
+        header.nSkins = fileHeader->numSkins;
+        header.framesOffset = fileHeader->ofsFrames;
+        header.tagsOffset = fileHeader->ofsTags;
+        header.surfacesOffset = fileHeader->ofsSurfaces;
     }
     
     const int validIdent = compressed_ ? MDC_IDENT : MD3_IDENT;
@@ -296,9 +309,78 @@ void MD3Model::loadFromFile(const std::string &filename)
             }
         }
     }
+    
+    for (const auto& [mesh, texture] : skin.textures)
+    {
+        m_textures[mesh] = loadTexture(texture.c_str());
+    }
+    
+    m_shader.init("assets/shaders/md3.glsl");
+    
+    m_drawCallList.resize(surfaces_.size());
+    
+    for (int i = 0; i < m_drawCallList.size(); ++i)
+    {
+        auto& surface = surfaces_[i];
+        auto& drawCall = m_drawCallList[i];
+        
+        drawCall.name = surface.name;
+        
+        int numVertices = (int)surface.vertices.size();
+        int numIndices = (int)surface.indices.size();
+        
+        drawCall.numVertices = numVertices;
+        drawCall.numIndices = numIndices;
+        
+        glGenBuffers(1, &drawCall.vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, drawCall.vbo);
+        glBufferData(GL_ARRAY_BUFFER, numVertices * sizeof(Vertex), surface.vertices.data(), GL_STATIC_DRAW);
+        
+        
+        glGenVertexArrays(1, &drawCall.vao);
+        glBindVertexArray(drawCall.vao);
+        
+        glEnableVertexAttribArray(VERT_POSITION_LOC);
+        glVertexAttribPointer(VERT_POSITION_LOC, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, pos));
+        
+        glEnableVertexAttribArray(VERT_NORMAL_LOC);
+        glVertexAttribPointer(VERT_NORMAL_LOC, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
+        
+        glEnableVertexAttribArray(VERT_TEX_COORD_LOC);
+        glVertexAttribPointer(VERT_TEX_COORD_LOC, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texCoord));
+        
+        
+        glGenBuffers(1, &drawCall.ibo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawCall.ibo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * numIndices, surface.indices.data(), GL_STREAM_DRAW);
+    }
 }
 
-void MD3Model::render(DrawCallList &drawCallList, Entity *entity) const
+void MD3Model::render(glm::mat4 &mvp)
+{
+    m_shader.setUniform("uMVP", mvp);
+    
+    for (int i = 0; i < m_drawCallList.size(); ++i)
+    {
+        auto& drawCall = m_drawCallList[i];
+        
+        if (drawCall.name == "h_blink") continue;
+        
+        if (m_textures.contains(drawCall.name))
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, m_textures[drawCall.name]);
+        }
+        
+        glBindVertexArray(drawCall.vao);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawCall.ibo);
+        
+        glDrawElements(GL_TRIANGLES, drawCall.numIndices, GL_UNSIGNED_SHORT, 0);
+    }
+}
+
+// Just for animated models
+void MD3Model::render(DrawCallList &drawCallList) const
 {
     for (int i = 0; i < surfaces_.size(); ++i)
     {
@@ -319,11 +401,6 @@ void MD3Model::render(DrawCallList &drawCallList, Entity *entity) const
     }
 }
 
-int MD3Model::numSurfaces() const
-{
-    return surfaces_.size();
-}
-
 int MD3Model::surfaceNumVertices(int surfaceIndex) const
 {
     return surfaces_[surfaceIndex].vertices.size();
@@ -334,3 +411,17 @@ int MD3Model::surfaceNumIndices(int surfaceIndex) const
     return surfaces_[surfaceIndex].indices.size();
 }
 
+MD3Model::~MD3Model()
+{
+    for (const auto& [mesh, texture] : m_textures)
+    {
+        glDeleteTextures(1, &texture);
+    }
+    
+    for (const auto& drawCall : m_drawCallList)
+    {
+        glDeleteBuffers(1, &drawCall.ibo);
+        glDeleteBuffers(1, &drawCall.vbo);
+        glDeleteVertexArrays(1, &drawCall.vao);
+    }
+}
