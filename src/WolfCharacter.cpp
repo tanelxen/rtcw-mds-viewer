@@ -11,28 +11,28 @@
 #include "Skin.h"
 #include "Utils.h"
 
-void WolfCharacter::init(const std::string &dir, const std::string &skinName)
+void WolfCharacter::init(const std::filesystem::path& dir, const std::string &skinName)
 {
-    std::string bodyMDSPath = dir + "/body.mds";
+    auto bodyMDSPath = dir / "body.mds";
     
-    std::string bodySkinPath = dir + "/body_" + skinName + ".skin";
-    auto bodySkin = parseSkinFile(bodySkinPath);
+    auto bodySkinPath = dir / ("body_" + skinName + ".skin");
+    auto bodySkin = parseSkinFile(bodySkinPath.string());
     
-    body.loadFromFile(bodyMDSPath, bodySkin);
+    body.loadFromFile(bodyMDSPath.string(), bodySkin);
     
-    std::string headSkinPath = dir + "/head_" + skinName + ".skin";
-    auto headSkin = parseSkinFile(headSkinPath);
+    auto headSkinPath = dir / ("head_" + skinName + ".skin");
+    auto headSkin = parseSkinFile(headSkinPath.string());
     
-    auto headMD3path = dir + "head.mdc";
+    auto headMD3path = dir / "head.mdc";
     
     if (headSkin.attachments.contains("md3_part"))
     {
-        headMD3path = dir + headSkin.attachments["md3_part"];
+        headMD3path = dir / headSkin.attachments["md3_part"];
     }
     
-    headMD3path = resolvePath(headMD3path, {".mdc"});
+    headMD3path = resolvePath(headMD3path.string(), {".mdc"});
     
-    head.loadFromFile(headMD3path, headSkin);
+    head.loadFromFile(headMD3path.string(), headSkin);
     
 //    for (auto& attachment : bodySkin.attachments)
 //    {

@@ -11,6 +11,7 @@
 #include "MD3Model.h"
 
 #include <glm/glm.hpp>
+#include <filesystem>
 
 struct SkinFile;
 struct AnimationEntry;
@@ -19,7 +20,7 @@ struct AnimationEntry;
 
 struct WolfCharacter
 {
-    void init(const std::string &dir, const std::string &skinName);
+    void init(const std::filesystem::path& dir, const std::string &skinName);
     void setAnimation(const AnimationEntry& sequence);
     
     void update(float dt);

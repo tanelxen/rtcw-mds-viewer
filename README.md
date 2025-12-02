@@ -10,10 +10,10 @@ Features:
 - ✅ GPU-skinning for mds
 
 ## PREVIEW
-![screenshot](https://github.com/tanelxen/rtcw-mds-viewer/blob/master/screenshots/screenshot1.png)
+![screenshot](https://github.com/tanelxen/rtcw-mds-viewer/blob/master/screenshots/screenshot2.png)
 
 ## HOW TO USE
-It works only with extracted assets. Just select folder in players dir. Then select skin.
+It works only with extracted assets. Just select folder in players dir (infantryss, loper, etc). Then select skin from the list.
 
 ## TODO
 - [ ] support more tags
