@@ -12,9 +12,11 @@
 #include <span>
 #include <glad/glad.h>
 
-#define VERT_POSITION_LOC 0
-#define VERT_NORMAL_LOC 1
-#define VERT_TEX_COORD_LOC 2
+#define VERT_PACKED0_LOC 0
+#define VERT_PACKED1_LOC 1
+#define VERT_PACKED2_LOC 2
+#define VERT_NORMAL_LOC 3
+#define VERT_TEX_COORD_LOC 4
 
 void MDSModel::loadFromFile(const std::string &filename, const SkinFile &skin)
 {
@@ -39,19 +41,19 @@ void MDSModel::loadFromFile(const std::string &filename, const SkinFile &skin)
     if (header_->ident != MDS_IDENT)
     {
         printf("Model %s: wrong ident (%i should be %i)\n", filename.c_str(), header_->ident, MDS_IDENT);
-        return false;
+        return;
     }
     
     if (header_->version != MDS_VERSION)
     {
         printf("Model %s: wrong version (%i should be %i)\n", filename.c_str(), header_->version, MDS_VERSION);
-        return false;
+        return;
     }
     
     if (header_->numFrames < 1)
     {
         printf("Model %s: no frames\n", filename.c_str());
-        return false;
+        return;
     }
     
     boneInfo_ = (mdsBoneInfo_t *)(data_.data() + header_->ofsBones);
@@ -70,55 +72,142 @@ void MDSModel::loadFromFile(const std::string &filename, const SkinFile &skin)
         m_textures[mesh] = loadTexture(texture.c_str());
     }
     
-    m_shader.init("assets/shaders/md3.glsl");
+    m_shader.init("assets/shaders/mds.glsl");
     
-    m_drawCallList.resize(numSurfaces());
+    auto header = (mdsHeader_t *)data_.data();
+    auto surface = (mdsSurface_t *)(data_.data() + header->ofsSurfaces);
     
-    for (int i = 0; i < m_drawCallList.size(); ++i)
+    m_drawCallList.resize(header->numSurfaces);
+    
+    for (int s = 0; s < header->numSurfaces; s++)
     {
-        auto& drawCall = m_drawCallList[i];
-        
-        int numVertices = surfaceNumVertices(i);
-        int numIndices = surfaceNumTriangles(i) * 3;
-        
+        int numVertices = surface->numVerts;
+        int numIndices = surface->numTriangles * 3;
+
+        auto& drawCall = m_drawCallList[s];
+        drawCall.name = surface->name;
         drawCall.numVertices = numVertices;
         drawCall.numIndices = numIndices;
+
+        drawCall.tib.resize(numIndices);
+        drawCall.tvb.resize(numVertices);
+        
+        auto indices = (uint16_t *)drawCall.tib.data();
+        auto vertices = (Vertex2 *)drawCall.tvb.data();
+        auto mdsIndices = (const int *)((uint8_t *)surface + surface->ofsTriangles);
+        
+        for (int i = 0; i < numIndices; i++)
+        {
+            indices[i] = mdsIndices[i];
+        }
+        
+        auto mdsVertex = (const mdsVertex_t *)((uint8_t *)surface + surface->ofsVerts);
+        
+        for (int i = 0; i < numVertices; i++)
+        {
+            Vertex2 &v = vertices[i];
+            
+            for (int j = 0; j < mdsVertex->numWeights; j++)
+            {
+                const mdsWeight_t &weight = mdsVertex->weights[j];
+                float w = float(weight.boneIndex) + weight.boneWeight * 0.5;
+                auto packed = vec4(weight.offset.x, weight.offset.y, weight.offset.z, w);
+                
+                if (j == 0)
+                {
+                    v.packed0 = packed;
+                }
+                else if (j == 1)
+                {
+                    v.packed1 = packed;
+                }
+                else if (j == 2)
+                {
+                    v.packed2 = packed;
+                }
+            }
+            
+            v.normal = mdsVertex->normal;
+            v.texCoord = mdsVertex->texCoords;
+            
+            // Move to the next vertex.
+            mdsVertex = (mdsVertex_t *)&mdsVertex->weights[mdsVertex->numWeights];
+        }
+        
+
         
         glGenBuffers(1, &drawCall.vbo);
         glBindBuffer(GL_ARRAY_BUFFER, drawCall.vbo);
-        glBufferData(GL_ARRAY_BUFFER, numVertices * sizeof(Vertex), nullptr, GL_STREAM_DRAW);
-        drawCall.verticesPtr = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-        
+        glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex2) * numVertices, drawCall.tvb.data(), GL_STATIC_DRAW);
         
         glGenVertexArrays(1, &drawCall.vao);
         glBindVertexArray(drawCall.vao);
         
-        glEnableVertexAttribArray(VERT_POSITION_LOC);
-        glVertexAttribPointer(VERT_POSITION_LOC, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, pos));
+        glEnableVertexAttribArray(VERT_PACKED0_LOC);
+        glVertexAttribPointer(VERT_PACKED0_LOC, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex2), (void*)offsetof(Vertex2, packed0));
+
+        glEnableVertexAttribArray(VERT_PACKED1_LOC);
+        glVertexAttribPointer(VERT_PACKED1_LOC, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex2), (void*)offsetof(Vertex2, packed1));
+        
+        glEnableVertexAttribArray(VERT_PACKED2_LOC);
+        glVertexAttribPointer(VERT_PACKED2_LOC, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex2), (void*)offsetof(Vertex2, packed2));
         
         glEnableVertexAttribArray(VERT_NORMAL_LOC);
-        glVertexAttribPointer(VERT_NORMAL_LOC, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
+        glVertexAttribPointer(VERT_NORMAL_LOC, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex2), (void*)offsetof(Vertex2, normal));
         
         glEnableVertexAttribArray(VERT_TEX_COORD_LOC);
-        glVertexAttribPointer(VERT_TEX_COORD_LOC, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texCoord));
-        
+        glVertexAttribPointer(VERT_TEX_COORD_LOC, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex2), (void*)offsetof(Vertex2, texCoord));
+
         
         glGenBuffers(1, &drawCall.ibo);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawCall.ibo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * numIndices, nullptr, GL_STREAM_DRAW);
-        drawCall.indicesPtr = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * numIndices, drawCall.tib.data(), GL_STATIC_DRAW);
+
+        // Move to the next surface.
+        surface = (mdsSurface_t *)((uint8_t *)surface + surface->ofsEnd);
     }
 }
 
 void MDSModel::render(const glm::mat4 &mvp, const MDSFrameInfo &entity)
 {
-    render(m_drawCallList, entity);
-    
     m_shader.bind();
     m_shader.setUniform("uMVP", mvp);
     
+    auto header = (mdsHeader_t *)data_.data();
+    auto surface = (mdsSurface_t *)(data_.data() + header->ofsSurfaces);
+    
     for (int i = 0; i < m_drawCallList.size(); ++i)
     {
+        Skeleton skeleton = calculateSkeleton(entity, (int *)((uint8_t *)surface + surface->ofsBoneReferences), surface->numBoneReferences);
+        
+        // Move to the next surface.
+        surface = (mdsSurface_t *)((uint8_t *)surface + surface->ofsEnd);
+        
+        for (int i = 0; i < MDS_MAX_BONES; ++i)
+        {
+            m_transforms[i][0][0] = skeleton.bones[i].rotation[0][0];
+            m_transforms[i][1][0] = skeleton.bones[i].rotation[1][0];
+            m_transforms[i][2][0] = skeleton.bones[i].rotation[2][0];
+            m_transforms[i][3][0] = 0;
+            
+            m_transforms[i][0][1] = skeleton.bones[i].rotation[0][1];
+            m_transforms[i][1][1] = skeleton.bones[i].rotation[1][1];
+            m_transforms[i][2][1] = skeleton.bones[i].rotation[2][1];
+            m_transforms[i][3][1] = 0;
+            
+            m_transforms[i][0][2] = skeleton.bones[i].rotation[0][2];
+            m_transforms[i][1][2] = skeleton.bones[i].rotation[1][2];
+            m_transforms[i][2][2] = skeleton.bones[i].rotation[2][2];
+            m_transforms[i][3][2] = 0;
+        
+            m_transforms[i][0][3] = skeleton.bones[i].translation.x;
+            m_transforms[i][1][3] = skeleton.bones[i].translation.y;
+            m_transforms[i][2][3] = skeleton.bones[i].translation.z;
+            m_transforms[i][3][3] = 1;
+        }
+        
+        m_shader.setUniform("uBoneTransforms", m_transforms);
+        
         auto& drawCall = m_drawCallList[i];
         
         if (m_textures.contains(drawCall.name))
@@ -131,69 +220,6 @@ void MDSModel::render(const glm::mat4 &mvp, const MDSFrameInfo &entity)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawCall.ibo);
         
         glDrawElements(GL_TRIANGLES, drawCall.numIndices, GL_UNSIGNED_SHORT, 0);
-    }
-}
-
-void MDSModel::render(DrawCallList &drawCallList, const MDSFrameInfo &entity) const
-{
-    auto header = (mdsHeader_t *)data_.data();
-    auto surface = (mdsSurface_t *)(data_.data() + header->ofsSurfaces);
-    
-    for (int i = 0; i < header->numSurfaces; i++)
-    {
-        assert(surface->numVerts > 0);
-        assert(surface->numTriangles > 0);
-        
-        std::vector<uint16_t> tib(surface->numTriangles * 3);
-        std::vector<Vertex> tvb(surface->numVerts);
-        
-        auto indices = (uint16_t *)tib.data();
-        auto vertices = (Vertex *)tvb.data();
-        auto mdsIndices = (const int *)((uint8_t *)surface + surface->ofsTriangles);
-        
-        for (int i = 0; i < surface->numTriangles * 3; i++)
-        {
-            indices[i] = mdsIndices[i];
-        }
-        
-        Skeleton skeleton = calculateSkeleton(entity, (int *)((uint8_t *)surface + surface->ofsBoneReferences), surface->numBoneReferences);
-        auto mdsVertex = (const mdsVertex_t *)((uint8_t *)surface + surface->ofsVerts);
-        
-        for (int i = 0; i < surface->numVerts; i++)
-        {
-            Vertex &v = vertices[i];
-            v.pos = vec3::empty;
-            
-            for (int j = 0; j < mdsVertex->numWeights; j++)
-            {
-                const mdsWeight_t &weight = mdsVertex->weights[j];
-                const Bone &bone = skeleton.bones[weight.boneIndex];
-                v.pos += (bone.translation + bone.rotation.transform(weight.offset)) * weight.boneWeight;
-            }
-            
-            v.normal = mdsVertex->normal;
-            v.texCoord = mdsVertex->texCoords;
-            
-            // Move to the next vertex.
-            mdsVertex = (mdsVertex_t *)&mdsVertex->weights[mdsVertex->numWeights];
-        }
-        
-        auto& drawCall = drawCallList[i];
-        
-        drawCall.name = surface->name;
-        
-        if (drawCall.verticesPtr)
-        {
-            memcpy(drawCall.verticesPtr, vertices, sizeof(Vertex) * tvb.size());
-        }
-        
-        if (drawCall.indicesPtr)
-        {
-            memcpy(drawCall.indicesPtr, indices, sizeof(uint16_t) * tib.size());
-        }
-        
-        // Move to the next surface.
-        surface = (mdsSurface_t *)((uint8_t *)surface + surface->ofsEnd);
     }
 }
 

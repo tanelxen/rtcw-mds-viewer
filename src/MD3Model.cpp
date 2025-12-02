@@ -112,19 +112,19 @@ void MD3Model::loadFromFile(const std::string &filename, const SkinFile &skin)
     if (header.ident != validIdent)
     {
         printf("Model %s: wrong ident (%i should be %i)\n", filename.c_str(), header.ident, validIdent);
-        return false;
+        return;
     }
     
     if (header.version != validVersion)
     {
         printf("Model %s: wrong version (%i should be %i)\n", filename.c_str(), header.version, validVersion);
-        return false;
+        return;
     }
     
     if (header.nFrames < 1)
     {
         printf("Model %s: no frames\n", filename.c_str());
-        return false;
+        return;
     }
     
     // Frames
@@ -192,52 +192,59 @@ void MD3Model::loadFromFile(const std::string &filename, const SkinFile &skin)
     // Copy uncompressed and compression surface data into a common struct.
     std::vector<FileSurface> fileSurfaces(header.nSurfaces);
     
-    if (compressed_)
+    if (header.surfacesOffset < data.size())
     {
-        auto mdcSurface = (mdcSurface_t *)&data[header.surfacesOffset];
-        
-        for (int i = 0; i < header.nSurfaces; i++)
+        if (compressed_)
         {
-            FileSurface &fs = fileSurfaces[i];
-            fs.offset = (uint8_t *)mdcSurface;
-            util::Strncpyz(fs.name, mdcSurface->name, sizeof(fs.name));
-            fs.nCompressedFrames = mdcSurface->numCompFrames;
-            fs.nBaseFrames = mdcSurface->numBaseFrames;
-            fs.nShaders = mdcSurface->numShaders;
-            fs.nVertices = mdcSurface->numVerts;
-            fs.nTriangles = mdcSurface->numTriangles;
-            fs.trianglesOffset = mdcSurface->ofsTriangles;
-            fs.shadersOffset = mdcSurface->ofsShaders;
-            fs.uvsOffset = mdcSurface->ofsSt;
-            fs.positionNormalOffset = mdcSurface->ofsXyzNormals;
-            fs.positionNormalCompressedOffset = mdcSurface->ofsXyzCompressed;
-            fs.baseFramesOffset = mdcSurface->ofsFrameBaseFrames;
-            fs.compressedFramesOffset = mdcSurface->ofsFrameCompFrames;
+            auto mdcSurface = (mdcSurface_t *)&data[header.surfacesOffset];
             
-            // Move to the next surface.
-            mdcSurface = (mdcSurface_t *)((uint8_t *)mdcSurface + mdcSurface->ofsEnd);
+            for (int i = 0; i < header.nSurfaces; i++)
+            {
+                FileSurface &fs = fileSurfaces[i];
+                fs.offset = (uint8_t *)mdcSurface;
+                util::Strncpyz(fs.name, mdcSurface->name, sizeof(fs.name));
+                fs.nCompressedFrames = mdcSurface->numCompFrames;
+                fs.nBaseFrames = mdcSurface->numBaseFrames;
+                fs.nShaders = mdcSurface->numShaders;
+                fs.nVertices = mdcSurface->numVerts;
+                fs.nTriangles = mdcSurface->numTriangles;
+                fs.trianglesOffset = mdcSurface->ofsTriangles;
+                fs.shadersOffset = mdcSurface->ofsShaders;
+                fs.uvsOffset = mdcSurface->ofsSt;
+                fs.positionNormalOffset = mdcSurface->ofsXyzNormals;
+                fs.positionNormalCompressedOffset = mdcSurface->ofsXyzCompressed;
+                fs.baseFramesOffset = mdcSurface->ofsFrameBaseFrames;
+                fs.compressedFramesOffset = mdcSurface->ofsFrameCompFrames;
+                
+                // Move to the next surface.
+                mdcSurface = (mdcSurface_t *)((uint8_t *)mdcSurface + mdcSurface->ofsEnd);
+            }
+        }
+        else
+        {
+            auto md3Surface = (md3Surface_t *)&data[header.surfacesOffset];
+            
+            for (int i = 0; i < header.nSurfaces; i++)
+            {
+                FileSurface &fs = fileSurfaces[i];
+                fs.offset = (uint8_t *)md3Surface;
+                util::Strncpyz(fs.name, md3Surface->name, sizeof(fs.name));
+                fs.nShaders = md3Surface->numShaders;
+                fs.nVertices = md3Surface->numVerts;
+                fs.nTriangles = md3Surface->numTriangles;
+                fs.trianglesOffset = md3Surface->ofsTriangles;
+                fs.shadersOffset = md3Surface->ofsShaders;
+                fs.uvsOffset = md3Surface->ofsSt;
+                fs.positionNormalOffset = md3Surface->ofsXyzNormals;
+                
+                // Move to the next surface.
+                md3Surface = (md3Surface_t *)((uint8_t *)md3Surface + md3Surface->ofsEnd);
+            }
         }
     }
     else
     {
-        auto md3Surface = (md3Surface_t *)&data[header.surfacesOffset];
-        
-        for (int i = 0; i < header.nSurfaces; i++)
-        {
-            FileSurface &fs = fileSurfaces[i];
-            fs.offset = (uint8_t *)md3Surface;
-            util::Strncpyz(fs.name, md3Surface->name, sizeof(fs.name));
-            fs.nShaders = md3Surface->numShaders;
-            fs.nVertices = md3Surface->numVerts;
-            fs.nTriangles = md3Surface->numTriangles;
-            fs.trianglesOffset = md3Surface->ofsTriangles;
-            fs.shadersOffset = md3Surface->ofsShaders;
-            fs.uvsOffset = md3Surface->ofsSt;
-            fs.positionNormalOffset = md3Surface->ofsXyzNormals;
-            
-            // Move to the next surface.
-            md3Surface = (md3Surface_t *)((uint8_t *)md3Surface + md3Surface->ofsEnd);
-        }
+        printf("Something wrong with %s", filename.c_str());
     }
     
     // Surfaces
@@ -358,6 +365,7 @@ void MD3Model::loadFromFile(const std::string &filename, const SkinFile &skin)
 
 void MD3Model::render(glm::mat4 &mvp)
 {
+    m_shader.bind();
     m_shader.setUniform("uMVP", mvp);
     
     for (int i = 0; i < m_drawCallList.size(); ++i)

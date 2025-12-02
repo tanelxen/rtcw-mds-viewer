@@ -18,6 +18,16 @@ struct Vertex
     vec2 texCoord;
 };
 
+struct Vertex2
+{
+    vec4 packed0;
+    vec4 packed1;
+    vec4 packed2;
+    
+    vec3 normal;
+    vec2 texCoord;
+};
+
 struct DrawCall
 {
     std::string name;
@@ -31,6 +41,9 @@ struct DrawCall
     void* indicesPtr;
     
     uint32_t vao;
+
+    std::vector<uint16_t> tib;
+    std::vector<Vertex2> tvb;
 };
 
 typedef std::vector<DrawCall> DrawCallList;

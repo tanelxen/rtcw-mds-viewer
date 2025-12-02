@@ -66,10 +66,9 @@ private:
     // Render stuff
 private:
     std::unordered_map<std::string, unsigned int> m_textures;
+    std::vector<glm::mat4> m_transforms{MDS_MAX_BONES};
     Shader m_shader;
     DrawCallList m_drawCallList;
-    
-    void render(DrawCallList &drawCallList, const MDSFrameInfo &entity) const;
     
     int numSurfaces() const;
     int surfaceNumVertices(int surfaceIndex) const;

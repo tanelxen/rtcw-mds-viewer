@@ -110,7 +110,7 @@ void Renderer::LoadSkinPair(const std::string& folder, const std::string& skinNa
     wolfanim = parseWolfAnimFile(animPath);
     
     m_pmodel = std::make_unique<WolfCharacter>();
-    m_pmodel->m_name = fs::path(folder).parent_path().filename() / skinName;
+    m_pmodel->m_name = (fs::path(folder).parent_path().filename() / skinName).string();
     m_pmodel->init(folder, skinName);
 }
 

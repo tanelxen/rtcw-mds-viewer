@@ -60,7 +60,7 @@ SkinFile parseSkinFile(const std::string& filepath)
             result.attachments[key] = value;
         } else {
             std::filesystem::path texture_path(value);
-            result.textures[key] = folder / texture_path.filename();
+            result.textures[key] = (folder / texture_path.filename()).string();
         }
     }
     

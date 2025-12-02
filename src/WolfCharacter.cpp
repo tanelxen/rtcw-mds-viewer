@@ -81,7 +81,7 @@ void WolfCharacter::updatePose()
 void WolfCharacter::draw(const glm::mat4 &mvp)
 {
     body.render(mvp, entity);
-    
+
     Transform headTransform;
     body.lerpTag("tag_head", entity, 0, &headTransform);
     
@@ -105,6 +105,4 @@ void WolfCharacter::draw(const glm::mat4 &mvp)
     
     glm::mat4 headMatrix = mvp * model;
     head.render(headMatrix);
-    
-//    shader.setUniform("uMVP", mvp * model);
 }

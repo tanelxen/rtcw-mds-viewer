@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <glm/glm.hpp>
+#include "Math.h"
 
 class Shader
 {
@@ -35,6 +36,9 @@ public:
     
     void setUniform(const std::string& name, const std::vector<glm::vec3>& vectors) const;
     void setUniform(const std::string& name, const std::vector<glm::mat4>& matrices) const;
+    
+    void setUniform(const std::string& name, const std::vector<math::vec3>& vectors) const;
+    void setUniform(const std::string& name, const std::vector<math::mat3>& matrices) const;
 
 //private:
     int program;

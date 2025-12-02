@@ -7,7 +7,7 @@ Features:
 - ✅ read .mdc (only head)
 - ✅ read wolfanim.cfg
 - ✅ select .skin-files
-- ✅ simple CPU-skinning animation
+- ✅ GPU-skinning for mds
 
 ## PREVIEW
 ![screenshot](https://github.com/tanelxen/rtcw-mds-viewer/blob/master/screenshots/screenshot1.png)
@@ -16,6 +16,5 @@ Features:
 It works only with extracted assets. Just select folder in players dir. Then select skin.
 
 ## TODO
-- [ ] on GPU skinning
 - [ ] support more tags
 - [ ] support .pk3-archives
